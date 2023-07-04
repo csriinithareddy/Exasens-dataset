@@ -1,0 +1,399 @@
+---
+title: "EAS 509: Project - I"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+date: '2023-04-21'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+### Reading the CSV file into data
+
+```{r}
+# Set working directory to the folder containing the CSV file
+setwd("C:\\Users\\Sriinitha Reddy\\Downloads")
+
+# Read CSV file into a data frame
+data <- read.csv("Exasens.csv", header=TRUE,na.strings = c("", "NA", "N/A"))
+
+```
+
+
+
+### Before we use the slice function, we need the dplyr package we need to install it and import it
+### Drop the second and third rows from the data frame as second is empty 
+### and third row consists of min,max which is not required
+### Preprocessing -> step -1
+
+```{r}
+library(dplyr)
+# Drop the second and third ro two rows from the data frame
+data <- slice(data, -(1:2))
+
+```
+
+
+### Viewing the first few rows of the dataset after removing few rows
+
+```{r}
+# View the first 10 rows of a data frame called my_data
+head(data, n = 10)
+
+```
+
+### Columns in the dataset
+
+```{r}
+# Printing column names
+colnames(data)
+```
+
+### Checking for NA values in each of the column
+
+```{r}
+for (column in colnames(data)) {
+  num_missing <- sum(is.na(data[[column]]))
+  print(paste0("Number of missing values in ", column, ": ", num_missing))
+}
+```
+
+### Preprocessing -> step -2
+### Replacing NA values with mean value of each column
+
+```{r}
+# Convert the Imaginary.Part column to numeric class
+data$Imaginary.Part <- as.numeric(data$Imaginary.Part)
+data$Real.Part <- as.numeric(data$Real.Part)
+data$X <- as.numeric(data$X)
+data$X.1 <- as.numeric(data$X.1)
+# Calculate the mean of the column and replace missing values with the mean
+
+mean_img <- mean(data$Imaginary.Part, na.rm = TRUE)
+data$Imaginary.Part[is.na(data$Imaginary.Part)] <- mean_img
+mean_real <- mean(data$Imaginary.Part, na.rm = TRUE)
+data$Real.Part[is.na(data$Real.Part)] <- mean_real
+mean_X1 <- mean(data$X.1, na.rm = TRUE)
+data$X.1[is.na(data$X.1)] <- mean_X1
+mean_X <- mean(data$X, na.rm = TRUE)
+data$X[is.na(data$X)] <- mean_X
+
+
+
+```
+
+### dataframe after the step -2 of preprocessing
+
+```{r}
+head(data, n = 10)
+```
+
+
+
+
+### Checking if there are any NA values
+
+```{r}
+# Check for NA or null values in the column
+
+for (column in colnames(data)) {
+  null_values <- sum(is.na(data[[column]]))
+  print(paste0("Number of missing values in ", column, " are: ", null_values))
+}
+```
+
+
+### Preprocessing -> step -3
+### Converting Imaginary, Real, X.1, X column values to float type
+
+
+```{r}
+
+# Convert the values in Imaginary part, Real part to float type
+data$Imaginary.Part <- as.numeric(data$Imaginary.Part)
+data$Real.Part <- as.numeric(data$Real.Part)
+data$X <- as.numeric(data$X)
+data$X.1 <- as.numeric(data$X.1)
+
+head(data, n = 10)
+```
+
+
+### Preprocessing -> step -4 
+### Converting the values to absolute values or ease of visualizing the data and drawing 
+
+```{r}
+
+data <- data %>%
+  mutate_at(vars(matches("Real.Part|Imaginary.Part|X")), abs)
+
+head(data, n = 10)
+```
+
+
+### Preprocessing -> step -5
+### Removing the ID column as it will not play a significant role.
+
+```{r}
+cleaned_data <- select(data, -ID)
+#head(data, n = 10)
+```
+
+### List of columns after removing the ID column
+
+```{r}
+colnames(cleaned_data)
+```
+
+### VISUALIZATIONS
+
+#### (1). Diagnosis Frequency
+
+```{r}
+library(ggplot2)
+
+d_c <- table(cleaned_data$Diagnosis)
+
+d_c_df <- data.frame(Diagnosis = names(d_c), Count = d_c)
+
+ggplot(d_c_df, aes(x = Diagnosis, y = d_c)) + 
+  geom_bar(stat = "identity",fill = "#A52A2A") + 
+  labs(title = "Diagnosis Frequencies", x = "Diagnosis", y = "Count")
+```
+
+### Preprocessing -> step - 6
+### Performing encoding on the diagnosis column to plot a heat map 
+
+```{r}
+heatmap_df = cleaned_data
+heatmap_df$Diagnosis <- as.numeric(factor(heatmap_df$Diagnosis))
+
+```
+
+### (2). Heatmap
+
+```{r}
+library(corrplot)
+
+# Create a correlation matrix for all variables in the data frame
+heatmap <- cor(heatmap_df)
+
+# Plot a heatmap of the correlation matrix
+corrplot(heatmap, method = "color", type = "upper", order = "hclust", 
+         addCoef.col = "black", tl.col = "black", tl.srt = 45,col = colorRampPalette(c("#FEEBE2", "#FCC5C0", "#FA9FB5", "#F768A1", "#DD3497", "#AE017E", "#7A0177"))(100))
+```
+
+#### (3). Distribution of patient ages
+
+```{r}
+# Create a table of the Age column
+Age <- table(heatmap_df$Age)
+
+# Create a boxplot of the data with descriptive titles
+boxplot(Age,
+        main = "Distribution of Patient Ages",
+        xlab = "Age Group",
+        ylab = "Count")
+
+```
+
+### Dropping the X.1 and X column as inferred from the heapmap.
+
+```{r}
+# drop columns x2 and x4 from the dataframe
+cleaned_data <- cleaned_data[, c(-3, -5)]
+print(colnames(cleaned_data))
+#print(class(heatmap_df))
+```
+
+### Preprocessing -> step -7
+### Scaling
+
+```{r}
+library(stats)
+
+features <- heatmap_df[,c("Diagnosis", "Imaginary.Part", "Real.Part", "Gender", "Age", "Smoking")]
+
+# Standardize(scaling) the features
+features <- scale(features)
+features <- as.data.frame(features)
+head(features, n = 10)
+
+```
+
+
+
+## Applying the clustering algorithms
+## 1. K-means clustering
+
+### Choosing the number of clusters using elbow method
+
+```{r}
+library(cluster)
+library(ggplot2)
+
+# Compute the within-cluster sum of squares for different values of k
+wss <- (nrow(heatmap_df)-1)*sum(apply(data,2,var))
+for (i in 2:10) 
+  wss[i] <- sum(kmeans(heatmap_df, centers=i)$withinss)
+
+# Plot the elbow curve
+ggplot(data.frame(x=1:8, y=wss[1:8]), aes(x=x, y=y)) + geom_line() + geom_point() + scale_x_continuous(breaks=1:8) +labs(x="Number of Clusters", y="WSS") +ggtitle("Elbow Curve")
+```
+
+
+### From the above elbow plot, we can infer that the bend occurs when the number of clusters are 3, hence we choose
+
+### the number of clusters as 3.
+
+```{r}
+# Perform k-means clustering
+k_best = 3
+kmeans_model <- kmeans(features, k_best)
+```
+
+
+```{r}
+# View the clustering results
+print(kmeans_model)
+```
+
+### Plotting the clusters
+
+```{r}
+# Plotting the clusters
+library(ggfortify)
+autoplot(kmeans_model,features,frame=TRUE)+
+  scale_fill_manual(values = c("red", "green", "blue")) +
+  labs(fill = "Cluster")
+```
+
+
+### HYPERPARAMETER TUNING (Varying the value of K)
+
+```{r}
+k_best = 4
+kmeans_model_1 <- kmeans(features, k_best)
+library(ggfortify)
+autoplot(kmeans_model_1,features,frame=TRUE)+
+  scale_fill_manual(values = c("red", "green", "blue","orange")) +
+  labs(fill = "Cluster")
+```
+
+```{r}
+k_best = 6
+kmeans_model_2 <- kmeans(features, k_best)
+library(ggfortify)
+autoplot(kmeans_model_2,features,frame=TRUE)+
+  scale_fill_manual(values = c("red", "green", "blue","black","orange","yellow")) +
+  labs(fill = "Cluster")
+```
+
+### EVALUATION METRIC - SILHOUETTE SCORE - K.MEANS CLUSTERING
+
+```{r}
+knn_score <- silhouette(kmeans_model$cluster, dist(heatmap_df))
+
+# Calculate the average Silhouette score
+avg_score <- mean(knn_score[, 3])
+
+# Print the average Silhouette score
+print(paste("Average Silhouette score for the K-means clustering is:", avg_score))
+```
+
+
+
+### 2. Hierarchical Clustering
+
+### Performing clustering using all the 4 methods
+
+```{r}
+distance <- dist(heatmap_df, method = "euclidean")
+complete_h <- hclust(distance, method = "complete")
+single_h <- hclust(distance,method = "single")
+avg_h <- hclust(distance,method = "average")
+centroid_h <- hclust(distance,method="centroid")
+```
+
+
+### Plot dendrograms for all the methods
+
+
+### Dendrogram - Complete method
+
+```{r}
+cutree(complete_h,4)
+plot(complete_h, hang = -1)
+```
+
+### Dendrogram - single method
+
+```{r}
+cutree(single_h,4)
+plot(single_h, hang = -1)
+```
+
+### Dendrogram - average method
+
+```{r}
+cutree(avg_h,4)
+plot(avg_h, hang = -1)
+```
+
+### Dendrogram - centroid method
+
+```{r}
+cutree(centroid_h,4)
+plot(centroid_h, hang = -1)
+
+```
+
+
+
+### EVALUATION METRIC - SILHOUETTE SCORE - HEIRARCHICAL CLUSTERING (all 4 methods)
+
+### Silhouette score: Method 1- Complete Method
+
+
+```{r}
+
+# The number of clusters we choose here are 3 for hierarchical clustering
+complete_score <- silhouette(cutree(complete_h, k = 3), dist(heatmap_df))
+avg_score_complete <- mean(complete_score[, 3])
+print(paste("Average Silhouette score using complete method is:",avg_score_complete))
+```
+
+### Silhouette score: Method 2 - Single Method
+
+
+```{r}
+single_score <- silhouette(cutree(single_h, k = 3), dist(heatmap_df))
+avg_score_single <- mean(single_score[, 3])
+print(paste("Average Silhouette score using single method is:",avg_score_single))
+```
+
+### Silhouette score: Method 3 - Average Method
+
+
+```{r}
+average_score <- silhouette(cutree(avg_h, k = 3), dist(heatmap_df))
+avg_score_method <- mean(average_score[, 3])
+print(paste("Average Silhouette score using average method is:",avg_score_method))
+```
+
+### Silhouette score: Method 4 - Centroid Method
+
+
+```{r}
+centroid_score <- silhouette(cutree(centroid_h, k = 3), dist(heatmap_df))
+avg_score_centroid <- mean(centroid_score[, 3])
+print(paste("Average Silhouette score using centroid method is:",avg_score_centroid))
+
+```
+
+
+
